@@ -106,9 +106,10 @@ class Game:
                 return False
         return True
 
-    def make_move(self, move_from, move_to=None):
+    def make_move(self, move_from, move_to=None, promotion=None):
         # move_from: (row, col) or string like 'e2e4'
         # move_to: (row, col) or None
+        # promotion: optional promotion piece type ('Q', 'R', 'B', 'N')
         if isinstance(move_from, str):
             # Parse move like 'e2e4'
             if len(move_from) == 4:
@@ -147,7 +148,10 @@ class Game:
 
         # Pawn promotion (to queen only)
         if piece.ptype == 'P' and (to_sq[0] == 0 or to_sq[0] == 7):
-            piece.ptype = 'Q'
+            if promotion in ['Q', 'R', 'B', 'N']:
+                piece.ptype = promotion
+            else:
+                piece.ptype = 'Q'
 
         # Update en passant
         if piece.ptype == 'P' and abs(to_sq[0] - from_sq[0]) == 2:
@@ -284,8 +288,9 @@ class Game:
                 c += dc
         return moves
 
-    def _make_move_no_check(self, move_from, move_to):
+    def _make_move_no_check(self, move_from, move_to, promotion=None):
         # Like make_move, but does not check for legality (used for move simulation)
+        # promotion: optional promotion piece type ('Q', 'R', 'B', 'N')
         piece = self.board.get_piece(*move_from)
         if not piece:
             return False
@@ -304,7 +309,10 @@ class Game:
         self.board.move_piece(piece, *move_to)
         # Pawn promotion (to queen only)
         if piece.ptype == 'P' and (move_to[0] == 0 or move_to[0] == 7):
-            piece.ptype = 'Q'
+            if promotion in ['Q', 'R', 'B', 'N']:
+                piece.ptype = promotion
+            else:
+                piece.ptype = 'Q'
         # Update en passant
         if piece.ptype == 'P' and abs(move_to[0] - move_from[0]) == 2:
             self.en_passant = ((move_from[0] + move_to[0]) // 2, move_from[1])

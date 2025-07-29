@@ -218,6 +218,33 @@ def main():
 
     while run:
         clock.tick(60)
+
+        def draw_promotion_choice(win, color):
+            # Draw a simple promotion choice UI in the center of the screen
+            choices = ['Q', 'R', 'B', 'N']
+            choice_rects = []
+            box_width = 60
+            box_height = 60
+            spacing = 10
+            total_width = box_width * 4 + spacing * 3
+            start_x = (WIDTH - total_width) // 2
+            start_y = (HEIGHT - box_height) // 2
+            font = pygame.font.SysFont('Arial', 36, bold=True)
+            pygame.draw.rect(win, (200, 200, 200), (start_x - 10, start_y - 10, total_width + 20, box_height + 20))
+            for i, ptype in enumerate(choices):
+                rect = pygame.Rect(start_x + i * (box_width + spacing), start_y, box_width, box_height)
+                pygame.draw.rect(win, (255, 255, 255), rect)
+                text = font.render(ptype, True, (0, 0, 0))
+                text_rect = text.get_rect(center=rect.center)
+                win.blit(text, text_rect)
+                choice_rects.append((rect, ptype))
+            pygame.display.update()
+            return choice_rects
+
+        promotion_choice = None
+        promotion_active = False
+        promotion_move = None
+
         if mode == '1' and game.current_player != user_color and not game_over:
             print(f"AI is thinking... (as {game.current_player})")
             ai_move = game.get_ai_move()
@@ -245,79 +272,113 @@ def main():
             if event.type == pygame.QUIT:
                 run = False
             elif not game_over:
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    x, y = pygame.mouse.get_pos()
-                    row, col = y // SQUARE_SIZE, x // SQUARE_SIZE
-                    # Map input to logical board if flipped
-                    logic_row, logic_col = (ROWS - 1 - row, COLS - 1 - col) if flipped else (row, col)
-                    mouse_moved = False
-
-                    # If clicking a highlighted move, move there
-                    if selected and (logic_row, logic_col) in valid_moves:
-                        history.append(copy.deepcopy(game))
-                        game.make_move(selected, (logic_row, logic_col))
-                        last_move = [selected, (logic_row, logic_col)]
-                        selected = None
-                        valid_moves = []
-                        dragging = False
-                        drag_piece = None
-                        drag_pos = None
-                        continue
-                    # If clicking the selected piece again, deselect
-                    if selected and (logic_row, logic_col) == selected:
-                        selected = None
-                        valid_moves = []
-                        dragging = False
-                        drag_piece = None
-                        drag_pos = None
-                        continue
-                    # If clicking a piece, select and show moves
-                    piece = game.board.get_piece(logic_row, logic_col)
-                    if piece and piece.color == game.current_player:
-                        if mode == '1' and game.current_player != user_color:
-                            continue
-                        selected = (logic_row, logic_col)
-                        valid_moves = game.get_valid_moves(selected)
-                        # Enable drag-and-drop
-                        dragging = True
-                        drag_piece = (logic_row, logic_col)
-                        drag_pos = (x, y)
-                    else:
-                        selected = None
-                        valid_moves = []
-                        dragging = False
-                        drag_piece = None
-                        drag_pos = None
-                elif event.type == pygame.MOUSEMOTION and dragging:
-                    drag_pos = pygame.mouse.get_pos()
-                    mouse_moved = True
-                elif event.type == pygame.MOUSEBUTTONUP and dragging:
-                    x, y = pygame.mouse.get_pos()
-                    row, col = y // SQUARE_SIZE, x // SQUARE_SIZE
-                    logic_row, logic_col = (ROWS - 1 - row, COLS - 1 - col) if flipped else (row, col)
-                    # If mouse was moved (a drag), and it's a valid move, make the move.
-                    if mouse_moved and selected and (logic_row, logic_col) in valid_moves:
-                        history.append(copy.deepcopy(game))
-                        game.make_move(selected, (logic_row, logic_col))
-                        last_move = [selected, (logic_row, logic_col)]
-                        selected = None
-                        valid_moves = []
-                    else:
-                        if selected and (logic_row, logic_col) == selected:
-                            # Already selected, deselect
-                            selected = None
-                            valid_moves = []
-                        else:
-                            piece = game.board.get_piece(logic_row, logic_col)
-                            if piece and piece.color == game.current_player:
-                                selected = (logic_row, logic_col)
-                                valid_moves = game.get_valid_moves(selected)
-                            else:
+                if promotion_active:
+                    if event.type == pygame.MOUSEBUTTONDOWN:
+                        mx, my = pygame.mouse.get_pos()
+                        for rect, ptype in promotion_choices:
+                            if rect.collidepoint(mx, my):
+                                promotion_choice = ptype
+                                promotion_active = False
+                                # Make the promotion move with selected piece
+                                history.append(copy.deepcopy(game))
+                                game.make_move(promotion_move[0], promotion_move[1], promotion_choice)
+                                last_move = [promotion_move[0], promotion_move[1]]
                                 selected = None
                                 valid_moves = []
-                    dragging = False
-                    drag_piece = None
-                    drag_pos = None
+                                dragging = False
+                                drag_piece = None
+                                drag_pos = None
+                                break
+                else:
+                    if event.type == pygame.MOUSEBUTTONDOWN:
+                        x, y = pygame.mouse.get_pos()
+                        row, col = y // SQUARE_SIZE, x // SQUARE_SIZE
+                        # Map input to logical board if flipped
+                        logic_row, logic_col = (ROWS - 1 - row, COLS - 1 - col) if flipped else (row, col)
+                        mouse_moved = False
+
+                        # If clicking a highlighted move, move there
+                        if selected and (logic_row, logic_col) in valid_moves:
+                            # Check if this move is a pawn promotion
+                            piece = game.board.get_piece(*selected)
+                            if piece and piece.ptype == 'P' and (logic_row == 0 or logic_row == 7):
+                                # Activate promotion UI
+                                promotion_active = True
+                                promotion_move = (selected, (logic_row, logic_col))
+                                promotion_choices = draw_promotion_choice(WIN, piece.color)
+                            else:
+                                history.append(copy.deepcopy(game))
+                                game.make_move(selected, (logic_row, logic_col))
+                                last_move = [selected, (logic_row, logic_col)]
+                                selected = None
+                                valid_moves = []
+                                dragging = False
+                                drag_piece = None
+                                drag_pos = None
+                            continue
+                        # If clicking the selected piece again, deselect
+                        if selected and (logic_row, logic_col) == selected:
+                            selected = None
+                            valid_moves = []
+                            dragging = False
+                            drag_piece = None
+                            drag_pos = None
+                            continue
+                        # If clicking a piece, select and show moves
+                        piece = game.board.get_piece(logic_row, logic_col)
+                        if piece and piece.color == game.current_player:
+                            if mode == '1' and game.current_player != user_color:
+                                continue
+                            selected = (logic_row, logic_col)
+                            valid_moves = game.get_valid_moves(selected)
+                            # Enable drag-and-drop
+                            dragging = True
+                            drag_piece = (logic_row, logic_col)
+                            drag_pos = (x, y)
+                        else:
+                            selected = None
+                            valid_moves = []
+                            dragging = False
+                            drag_piece = None
+                            drag_pos = None
+                    elif event.type == pygame.MOUSEMOTION and dragging:
+                        drag_pos = pygame.mouse.get_pos()
+                        mouse_moved = True
+                    elif event.type == pygame.MOUSEBUTTONUP and dragging:
+                        x, y = pygame.mouse.get_pos()
+                        row, col = y // SQUARE_SIZE, x // SQUARE_SIZE
+                        logic_row, logic_col = (ROWS - 1 - row, COLS - 1 - col) if flipped else (row, col)
+                        # If mouse was moved (a drag), and it's a valid move, make the move.
+                        if mouse_moved and selected and (logic_row, logic_col) in valid_moves:
+                            # Check if this move is a pawn promotion
+                            piece = game.board.get_piece(*selected)
+                            if piece and piece.ptype == 'P' and (logic_row == 0 or logic_row == 7):
+                                # Activate promotion UI
+                                promotion_active = True
+                                promotion_move = (selected, (logic_row, logic_col))
+                                promotion_choices = draw_promotion_choice(WIN, piece.color)
+                            else:
+                                history.append(copy.deepcopy(game))
+                                game.make_move(selected, (logic_row, logic_col))
+                                last_move = [selected, (logic_row, logic_col)]
+                                selected = None
+                                valid_moves = []
+                        else:
+                            if selected and (logic_row, logic_col) == selected:
+                                # Already selected, deselect
+                                selected = None
+                                valid_moves = []
+                            else:
+                                piece = game.board.get_piece(logic_row, logic_col)
+                                if piece and piece.color == game.current_player:
+                                    selected = (logic_row, logic_col)
+                                    valid_moves = game.get_valid_moves(selected)
+                                else:
+                                    selected = None
+                                    valid_moves = []
+                        dragging = False
+                        drag_piece = None
+                        drag_pos = None
             if event.type == pygame.KEYDOWN:
                 # Undo with Ctrl+Z
                 if event.key == pygame.K_z and (event.mod & pygame.KMOD_CTRL):
